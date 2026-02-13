@@ -15,173 +15,60 @@ export default function Home() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [currentScan, setCurrentScan] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const scanBufferRef = useRef<string>('')
-  const lastKeyTimeRef = useRef<number>(0)
-  const scannedItemsRef = useRef<ScannedItem[]>([])
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Keep ref in sync with state
-  useEffect(() => {
-    scannedItemsRef.current = scannedItems
-  }, [scannedItems])
-
-  // Function to save scanned barcode
+  // Save scanned barcode
   const saveScannedBarcode = (scannedValue: string) => {
-    if (!scannedValue.trim()) return
+    const cleanValue = scannedValue.trim()
+    if (!cleanValue) return
 
-    // Check if already scanned
-    if (scannedItemsRef.current.some(item => item.serialNumber === scannedValue.trim())) {
-      setMessage({ type: 'error', text: `Serial number ${scannedValue.trim()} already scanned!` })
-      setTimeout(() => setMessage(null), 2000)
-    } else {
+    setScannedItems(prev => {
+      if (prev.some(item => item.serialNumber === cleanValue)) {
+        setMessage({ type: 'error', text: `Serial number ${cleanValue} already scanned!` })
+        setTimeout(() => setMessage(null), 2000)
+        return prev
+      }
+
       const newItem: ScannedItem = {
         id: Date.now().toString(),
-        serialNumber: scannedValue.trim(),
+        serialNumber: cleanValue,
         timestamp: new Date(),
       }
-      setScannedItems(prev => [...prev, newItem])
-      setMessage({ type: 'success', text: `Scanned: ${scannedValue.trim()}` })
+
+      setMessage({ type: 'success', text: `Scanned: ${cleanValue}` })
       setTimeout(() => setMessage(null), 2000)
-    }
-    
-    scanBufferRef.current = ''
+
+      return [...prev, newItem]
+    })
+
     setCurrentScan('')
-    
-    // Clear any pending auto-save timeout
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current)
-      autoSaveTimeoutRef.current = null
-    }
-    
-    // Refocus input for next scan
+
+    // Refocus for next scan
     setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus()
-      }
+      inputRef.current?.focus()
     }, 50)
   }
 
+  // Keep input focused when scanning enabled
   useEffect(() => {
-    // Keep input field focused when scanning is enabled
-    const keepFocused = () => {
-      if (isScanning && inputRef.current && document.activeElement !== inputRef.current) {
+    if (!isScanning) return
+
+    const interval = setInterval(() => {
+      if (inputRef.current && document.activeElement !== inputRef.current) {
         inputRef.current.focus()
       }
-    }
+    }, 500)
 
-    // Focus immediately and set up interval to keep it focused
-    if (isScanning) {
-      keepFocused()
-      const focusInterval = setInterval(keepFocused, 500)
-      return () => clearInterval(focusInterval)
-    }
+    return () => clearInterval(interval)
   }, [isScanning])
-
-  useEffect(() => {
-    // Global keyboard listener for Zebra scanner auto-capture
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (!isScanning) return
-
-      const now = Date.now()
-      const timeSinceLastKey = now - lastKeyTimeRef.current
-
-      // If Enter is pressed, immediately save the scanned barcode
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        e.stopPropagation()
-        
-        const scannedValue = scanBufferRef.current
-        if (scannedValue) {
-          saveScannedBarcode(scannedValue)
-        }
-        return
-      }
-
-      // Handle character input (Zebra scanners send characters very quickly)
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // If more than 500ms passed since last key, reset buffer (new scan)
-        if (timeSinceLastKey > 500) {
-          scanBufferRef.current = ''
-          // Clear any pending auto-save timeout
-          if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current)
-            autoSaveTimeoutRef.current = null
-          }
-        }
-        
-        scanBufferRef.current += e.key
-        setCurrentScan(scanBufferRef.current)
-        lastKeyTimeRef.current = now
-
-        // Clear existing auto-save timeout
-        if (autoSaveTimeoutRef.current) {
-          clearTimeout(autoSaveTimeoutRef.current)
-        }
-
-        // Set auto-save timeout - if no more characters come in 200ms, save automatically
-        // This handles cases where Enter might not be captured
-        autoSaveTimeoutRef.current = setTimeout(() => {
-          const valueToSave = scanBufferRef.current
-          if (valueToSave && valueToSave.length > 0) {
-            saveScannedBarcode(valueToSave)
-          }
-        }, 200)
-
-        // Auto-focus input if not already focused
-        if (inputRef.current && document.activeElement !== inputRef.current) {
-          inputRef.current.focus()
-        }
-      }
-    }
-
-    // Add global listener
-    window.addEventListener('keydown', handleGlobalKeyDown, true)
-    
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown, true)
-      // Cleanup auto-save timeout
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-    }
-  }, [isScanning])
-
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Let the global handler process it, but prevent default for Enter
-    if (e.key === 'Enter' && isScanning) {
-      e.preventDefault()
-    }
-  }
 
   const toggleScanning = () => {
     setIsScanning(prev => !prev)
-    scanBufferRef.current = ''
     setCurrentScan('')
-    if (!isScanning && inputRef.current) {
-      setTimeout(() => {
-        inputRef.current?.focus()
-      }, 100)
-    }
-  }
 
-  const handleScanSuccess = (serialNumber: string) => {
-    // Check if already scanned
-    if (scannedItems.some(item => item.serialNumber === serialNumber)) {
-      setMessage({ type: 'error', text: `Serial number ${serialNumber} already scanned!` })
-      return
+    if (!isScanning) {
+      setTimeout(() => inputRef.current?.focus(), 100)
     }
-
-    const newItem: ScannedItem = {
-      id: Date.now().toString(),
-      serialNumber,
-      timestamp: new Date(),
-    }
-
-    setScannedItems(prev => [...prev, newItem])
-    setMessage({ type: 'success', text: `Scanned: ${serialNumber}` })
-    
-    // Clear message after 2 seconds
-    setTimeout(() => setMessage(null), 2000)
   }
 
   const removeItem = (id: string) => {
@@ -202,27 +89,20 @@ export default function Home() {
       return
     }
 
-    // Prepare data for Excel
     const data = [
-      ['Serial Number', 'Timestamp'], // Header row
+      ['Serial Number', 'Timestamp'],
       ...scannedItems.map(item => [
         item.serialNumber,
         item.timestamp.toLocaleString(),
       ]),
     ]
 
-    // Create workbook and worksheet
     const ws = XLSX.utils.aoa_to_sheet(data)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Scanned Serial Numbers')
 
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 30 }, // Serial Number column
-      { wch: 25 }, // Timestamp column
-    ]
+    ws['!cols'] = [{ wch: 30 }, { wch: 25 }]
 
-    // Generate Excel file and download
     const fileName = `scanned_serial_numbers_${new Date().toISOString().split('T')[0]}.xlsx`
     XLSX.writeFile(wb, fileName)
 
@@ -261,25 +141,40 @@ export default function Home() {
             <p>Point your Zebra scanner at a barcode and scan</p>
             <p className="scanner-hint">The scanner will automatically capture the barcode</p>
           </div>
+
           <input
             ref={inputRef}
             type="text"
             className="scanner-input"
             value={currentScan}
-            onChange={(e) => setCurrentScan(e.target.value)}
-            onKeyDown={handleInputKeyDown}
+            onChange={(e) => {
+              const value = e.target.value
+              setCurrentScan(value)
+
+              if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current)
+              }
+
+              autoSaveTimeoutRef.current = setTimeout(() => {
+                if (value.trim().length > 0) {
+                  saveScannedBarcode(value)
+                }
+              }, 300)
+            }}
             placeholder="Scan barcode here..."
             autoFocus
             disabled={!isScanning}
           />
         </div>
+
         <div className="scanner-controls">
-          <button 
-            className={isScanning ? 'btn btn-danger' : 'btn btn-primary'} 
+          <button
+            className={isScanning ? 'btn btn-danger' : 'btn btn-primary'}
             onClick={toggleScanning}
           >
             {isScanning ? 'Pause Scanning' : 'Resume Scanning'}
           </button>
+
           {scannedItems.length > 0 && (
             <>
               <button className="btn btn-success" onClick={downloadExcel}>
@@ -302,7 +197,7 @@ export default function Home() {
               <p>Use your Zebra scanner to scan barcodes.</p>
             </div>
           ) : (
-            scannedItems.map((item) => (
+            scannedItems.map(item => (
               <div key={item.id} className="scanned-item">
                 <span>{item.serialNumber}</span>
                 <button
