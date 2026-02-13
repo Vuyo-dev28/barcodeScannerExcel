@@ -18,11 +18,48 @@ export default function Home() {
   const scanBufferRef = useRef<string>('')
   const lastKeyTimeRef = useRef<number>(0)
   const scannedItemsRef = useRef<ScannedItem[]>([])
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Keep ref in sync with state
   useEffect(() => {
     scannedItemsRef.current = scannedItems
   }, [scannedItems])
+
+  // Function to save scanned barcode
+  const saveScannedBarcode = (scannedValue: string) => {
+    if (!scannedValue.trim()) return
+
+    // Check if already scanned
+    if (scannedItemsRef.current.some(item => item.serialNumber === scannedValue.trim())) {
+      setMessage({ type: 'error', text: `Serial number ${scannedValue.trim()} already scanned!` })
+      setTimeout(() => setMessage(null), 2000)
+    } else {
+      const newItem: ScannedItem = {
+        id: Date.now().toString(),
+        serialNumber: scannedValue.trim(),
+        timestamp: new Date(),
+      }
+      setScannedItems(prev => [...prev, newItem])
+      setMessage({ type: 'success', text: `Scanned: ${scannedValue.trim()}` })
+      setTimeout(() => setMessage(null), 2000)
+    }
+    
+    scanBufferRef.current = ''
+    setCurrentScan('')
+    
+    // Clear any pending auto-save timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+      autoSaveTimeoutRef.current = null
+    }
+    
+    // Refocus input for next scan
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus()
+      }
+    }, 50)
+  }
 
   useEffect(() => {
     // Keep input field focused when scanning is enabled
@@ -48,37 +85,14 @@ export default function Home() {
       const now = Date.now()
       const timeSinceLastKey = now - lastKeyTimeRef.current
 
-      // If Enter is pressed, process the scanned barcode
+      // If Enter is pressed, immediately save the scanned barcode
       if (e.key === 'Enter') {
         e.preventDefault()
         e.stopPropagation()
         
-        const scannedValue = scanBufferRef.current.trim()
+        const scannedValue = scanBufferRef.current
         if (scannedValue) {
-          // Check if already scanned
-          if (scannedItemsRef.current.some(item => item.serialNumber === scannedValue)) {
-            setMessage({ type: 'error', text: `Serial number ${scannedValue} already scanned!` })
-            setTimeout(() => setMessage(null), 2000)
-          } else {
-            const newItem: ScannedItem = {
-              id: Date.now().toString(),
-              serialNumber: scannedValue,
-              timestamp: new Date(),
-            }
-            setScannedItems(prev => [...prev, newItem])
-            setMessage({ type: 'success', text: `Scanned: ${scannedValue}` })
-            setTimeout(() => setMessage(null), 2000)
-          }
-          
-          scanBufferRef.current = ''
-          setCurrentScan('')
-          
-          // Refocus input for next scan
-          setTimeout(() => {
-            if (inputRef.current) {
-              inputRef.current.focus()
-            }
-          }, 50)
+          saveScannedBarcode(scannedValue)
         }
         return
       }
@@ -88,11 +102,30 @@ export default function Home() {
         // If more than 500ms passed since last key, reset buffer (new scan)
         if (timeSinceLastKey > 500) {
           scanBufferRef.current = ''
+          // Clear any pending auto-save timeout
+          if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current)
+            autoSaveTimeoutRef.current = null
+          }
         }
         
         scanBufferRef.current += e.key
         setCurrentScan(scanBufferRef.current)
         lastKeyTimeRef.current = now
+
+        // Clear existing auto-save timeout
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current)
+        }
+
+        // Set auto-save timeout - if no more characters come in 200ms, save automatically
+        // This handles cases where Enter might not be captured
+        autoSaveTimeoutRef.current = setTimeout(() => {
+          const valueToSave = scanBufferRef.current
+          if (valueToSave && valueToSave.length > 0) {
+            saveScannedBarcode(valueToSave)
+          }
+        }, 200)
 
         // Auto-focus input if not already focused
         if (inputRef.current && document.activeElement !== inputRef.current) {
@@ -106,6 +139,10 @@ export default function Home() {
     
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true)
+      // Cleanup auto-save timeout
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
     }
   }, [isScanning])
 
