@@ -90,10 +90,10 @@ export default function Home() {
     }
 
     const data = [
-      ['Serial Number', 'Timestamp'],
-      ...scannedItems.map(item => [
+      ['Count', 'Serial Number'],
+      ...scannedItems.map((item, index) => [
+        index + 1, // Count starting from 1
         item.serialNumber,
-        item.timestamp.toLocaleString(),
       ]),
     ]
 
@@ -101,7 +101,8 @@ export default function Home() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Scanned Serial Numbers')
 
-    ws['!cols'] = [{ wch: 30 }, { wch: 25 }]
+    // Set column widths: Count, Serial Number
+    ws['!cols'] = [{ wch: 10 }, { wch: 30 }]
 
     const fileName = `scanned_serial_numbers_${new Date().toISOString().split('T')[0]}.xlsx`
     XLSX.writeFile(wb, fileName)
@@ -113,7 +114,7 @@ export default function Home() {
   return (
     <div className="container">
       <div className="header">
-        <h1>📱 Barcode Serial to Excel</h1>
+        <h1>Barcode Serial to Excel</h1>
         <p>Property of Vuyo Mbanjwa. Licensed</p>
       </div>
 
@@ -129,7 +130,18 @@ export default function Home() {
           <span className="stat-label">Total Scanned</span>
         </div>
         <div className="stat-item">
-          <span className="stat-value">{isScanning ? '🟢 Ready' : '🔴 Paused'}</span>
+          <span className="stat-value">
+            <span style={{ 
+              display: 'inline-block', 
+              width: '12px', 
+              height: '12px', 
+              borderRadius: '50%', 
+              backgroundColor: isScanning ? '#ffffff' : '#999999',
+              marginRight: '8px',
+              boxShadow: isScanning ? '0 0 8px rgba(255, 255, 255, 0.6)' : '0 0 8px rgba(153, 153, 153, 0.6)'
+            }}></span>
+            {isScanning ? 'Ready' : 'Paused'}
+          </span>
           <span className="stat-label">Scanner Status</span>
         </div>
       </div>
