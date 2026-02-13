@@ -15,39 +15,111 @@ export default function Home() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [currentScan, setCurrentScan] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const scanBufferRef = useRef<string>('')
+  const lastKeyTimeRef = useRef<number>(0)
+  const scannedItemsRef = useRef<ScannedItem[]>([])
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    scannedItemsRef.current = scannedItems
+  }, [scannedItems])
 
   useEffect(() => {
-    // Focus the input field when component mounts or scanning is enabled
-    if (isScanning && inputRef.current) {
-      inputRef.current.focus()
+    // Keep input field focused when scanning is enabled
+    const keepFocused = () => {
+      if (isScanning && inputRef.current && document.activeElement !== inputRef.current) {
+        inputRef.current.focus()
+      }
+    }
+
+    // Focus immediately and set up interval to keep it focused
+    if (isScanning) {
+      keepFocused()
+      const focusInterval = setInterval(keepFocused, 500)
+      return () => clearInterval(focusInterval)
+    }
+  }, [isScanning])
+
+  useEffect(() => {
+    // Global keyboard listener for Zebra scanner auto-capture
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (!isScanning) return
+
+      const now = Date.now()
+      const timeSinceLastKey = now - lastKeyTimeRef.current
+
+      // If Enter is pressed, process the scanned barcode
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        
+        const scannedValue = scanBufferRef.current.trim()
+        if (scannedValue) {
+          // Check if already scanned
+          if (scannedItemsRef.current.some(item => item.serialNumber === scannedValue)) {
+            setMessage({ type: 'error', text: `Serial number ${scannedValue} already scanned!` })
+            setTimeout(() => setMessage(null), 2000)
+          } else {
+            const newItem: ScannedItem = {
+              id: Date.now().toString(),
+              serialNumber: scannedValue,
+              timestamp: new Date(),
+            }
+            setScannedItems(prev => [...prev, newItem])
+            setMessage({ type: 'success', text: `Scanned: ${scannedValue}` })
+            setTimeout(() => setMessage(null), 2000)
+          }
+          
+          scanBufferRef.current = ''
+          setCurrentScan('')
+          
+          // Refocus input for next scan
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.focus()
+            }
+          }, 50)
+        }
+        return
+      }
+
+      // Handle character input (Zebra scanners send characters very quickly)
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // If more than 500ms passed since last key, reset buffer (new scan)
+        if (timeSinceLastKey > 500) {
+          scanBufferRef.current = ''
+        }
+        
+        scanBufferRef.current += e.key
+        setCurrentScan(scanBufferRef.current)
+        lastKeyTimeRef.current = now
+
+        // Auto-focus input if not already focused
+        if (inputRef.current && document.activeElement !== inputRef.current) {
+          inputRef.current.focus()
+        }
+      }
+    }
+
+    // Add global listener
+    window.addEventListener('keydown', handleGlobalKeyDown, true)
+    
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true)
     }
   }, [isScanning])
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isScanning) {
+    // Let the global handler process it, but prevent default for Enter
+    if (e.key === 'Enter' && isScanning) {
       e.preventDefault()
-      return
-    }
-
-    // If Enter is pressed, process the scanned barcode
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const scannedValue = currentScan.trim()
-      if (scannedValue) {
-        handleScanSuccess(scannedValue)
-        setCurrentScan('')
-        // Refocus input for next scan
-        setTimeout(() => {
-          if (inputRef.current) {
-            inputRef.current.focus()
-          }
-        }, 100)
-      }
     }
   }
 
   const toggleScanning = () => {
     setIsScanning(prev => !prev)
+    scanBufferRef.current = ''
+    setCurrentScan('')
     if (!isScanning && inputRef.current) {
       setTimeout(() => {
         inputRef.current?.focus()
@@ -125,7 +197,7 @@ export default function Home() {
     <div className="container">
       <div className="header">
         <h1>📱 Barcode Serial to Excel</h1>
-        <p>Scan serial numbers and export to Excel</p>
+        <p>Property of Vuyo Mbanjwa. Licensed</p>
       </div>
 
       {message && (
