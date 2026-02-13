@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'iKhokha Barcode Scanner',
+  title: 'Barcode Serial to Excel',
   description: 'Scan and store serial numbers in Excel',
 }
 

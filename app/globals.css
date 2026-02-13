@@ -57,11 +57,70 @@ body {
   margin: 0 auto;
   border-radius: 12px;
   overflow: hidden;
-  background: #000;
-  min-height: 400px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 300px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 40px 20px;
+}
+
+.scanner-container.zebra-scanner {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.scanner-instructions {
+  text-align: center;
+  color: white;
+  margin-bottom: 30px;
+}
+
+.scanner-instructions h3 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.scanner-instructions p {
+  font-size: 1.1rem;
+  margin: 5px 0;
+  opacity: 0.95;
+}
+
+.scanner-hint {
+  font-size: 0.9rem !important;
+  opacity: 0.85 !important;
+  font-style: italic;
+}
+
+.scanner-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 15px 20px;
+  font-size: 1.2rem;
+  border: 3px solid white;
+  border-radius: 8px;
+  background: white;
+  color: #333;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 2px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.scanner-input:focus {
+  border-color: #ffd700;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  transform: scale(1.02);
+}
+
+.scanner-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f0f0f0;
 }
 
 #qr-reader {
@@ -230,6 +289,19 @@ body {
   margin-bottom: 20px;
   border: 1px solid #f5c6cb;
   text-align: center;
+  font-weight: 500;
+}
+
+.footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.footer p {
+  color: #666;
+  font-size: 0.9rem;
   font-weight: 500;
 }
 

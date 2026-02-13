@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
 import * as XLSX from 'xlsx'
 
 interface ScannedItem {
@@ -12,58 +11,47 @@ interface ScannedItem {
 
 export default function Home() {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([])
-  const [isScanning, setIsScanning] = useState(false)
+  const [isScanning, setIsScanning] = useState(true)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
-  const qrCodeRegionId = 'qr-reader'
+  const [currentScan, setCurrentScan] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // Cleanup on unmount
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {})
-      }
+    // Focus the input field when component mounts or scanning is enabled
+    if (isScanning && inputRef.current) {
+      inputRef.current.focus()
     }
-  }, [])
+  }, [isScanning])
 
-  const startScanning = async () => {
-    try {
-      setMessage(null)
-      const html5QrCode = new Html5Qrcode(qrCodeRegionId)
-      scannerRef.current = html5QrCode
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isScanning) {
+      e.preventDefault()
+      return
+    }
 
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
-        (decodedText) => {
-          handleScanSuccess(decodedText)
-        },
-        (errorMessage) => {
-          // Ignore scanning errors (they're frequent during scanning)
-        }
-      )
-
-      setIsScanning(true)
-    } catch (err) {
-      console.error('Error starting scanner:', err)
-      setMessage({ type: 'error', text: 'Failed to start camera. Please check permissions.' })
-      setIsScanning(false)
+    // If Enter is pressed, process the scanned barcode
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const scannedValue = currentScan.trim()
+      if (scannedValue) {
+        handleScanSuccess(scannedValue)
+        setCurrentScan('')
+        // Refocus input for next scan
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus()
+          }
+        }, 100)
+      }
     }
   }
 
-  const stopScanning = async () => {
-    try {
-      if (scannerRef.current) {
-        await scannerRef.current.stop()
-        scannerRef.current.clear()
-        scannerRef.current = null
-      }
-      setIsScanning(false)
-    } catch (err) {
-      console.error('Error stopping scanner:', err)
+  const toggleScanning = () => {
+    setIsScanning(prev => !prev)
+    if (!isScanning && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
     }
   }
 
@@ -136,7 +124,7 @@ export default function Home() {
   return (
     <div className="container">
       <div className="header">
-        <h1>📱 iKhokha Barcode Scanner</h1>
+        <h1>📱 Barcode Serial to Excel</h1>
         <p>Scan serial numbers and export to Excel</p>
       </div>
 
@@ -152,25 +140,37 @@ export default function Home() {
           <span className="stat-label">Total Scanned</span>
         </div>
         <div className="stat-item">
-          <span className="stat-value">{isScanning ? '🟢' : '🔴'}</span>
+          <span className="stat-value">{isScanning ? '🟢 Ready' : '🔴 Paused'}</span>
           <span className="stat-label">Scanner Status</span>
         </div>
       </div>
 
       <div className="scanner-section">
-        <div className="scanner-container">
-          <div id={qrCodeRegionId} style={{ width: '100%' }}></div>
+        <div className="scanner-container zebra-scanner">
+          <div className="scanner-instructions">
+            <h3>Zebra Scanner Ready</h3>
+            <p>Point your Zebra scanner at a barcode and scan</p>
+            <p className="scanner-hint">The scanner will automatically capture the barcode</p>
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            className="scanner-input"
+            value={currentScan}
+            onChange={(e) => setCurrentScan(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Scan barcode here..."
+            autoFocus
+            disabled={!isScanning}
+          />
         </div>
         <div className="scanner-controls">
-          {!isScanning ? (
-            <button className="btn btn-primary" onClick={startScanning}>
-              Start Scanning
-            </button>
-          ) : (
-            <button className="btn btn-danger" onClick={stopScanning}>
-              Stop Scanning
-            </button>
-          )}
+          <button 
+            className={isScanning ? 'btn btn-danger' : 'btn btn-primary'} 
+            onClick={toggleScanning}
+          >
+            {isScanning ? 'Pause Scanning' : 'Resume Scanning'}
+          </button>
           {scannedItems.length > 0 && (
             <>
               <button className="btn btn-success" onClick={downloadExcel}>
@@ -190,7 +190,7 @@ export default function Home() {
           {scannedItems.length === 0 ? (
             <div className="empty-state">
               <p>No serial numbers scanned yet.</p>
-              <p>Click "Start Scanning" to begin.</p>
+              <p>Use your Zebra scanner to scan barcodes.</p>
             </div>
           ) : (
             scannedItems.map((item) => (
@@ -208,6 +208,10 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      <footer className="footer">
+        <p>Property of Vuyo Mbanjwa. Licensed</p>
+      </footer>
     </div>
   )
 }
